@@ -10,7 +10,7 @@ import imutils
 import random
 import kairos_face
 import qrtools
-import names
+import dlib
 def blend_transparent(face_img, overlay_t_img):
 	# Split out the transparency mask from the colour info
 	overlay_img = overlay_t_img[:,:,:3] # Grab the BRG planes
@@ -31,6 +31,12 @@ def blend_transparent(face_img, overlay_t_img):
 	# And finally just add them together, and rescale it back to an 8bit integer image    
 	return np.uint8(cv2.addWeighted(face_part, 255.0, overlay_part, 255.0, 0.0))
 #Prep API and camera
+def smiling(image):
+	smileCascade = cv2.CascadeClassifier("haarcascade_smile.xml")
+	roi_gray = cv2.cvtColor(image,cv2.BGR2GRAY)
+	smile = smileCascade.detectMultiScale(roi_gray,scaleFactor= 1.7,minNeighbors=22,minSize=(25, 25),flags=cv2.cv.CV_HAAR_SCALE_IMAGE)
+	return len(smile) > 0
+
 
 img2 = None
 emote = []
@@ -122,12 +128,14 @@ def doWinston(dct):
 			print e
 def doQR():
 	global inQRThread
+	global name
 	qr = qrtools.QR()
 	if qr.decode('bar.png'):
 		st = qr.data
-		print st
-		nm = names.get_first_name()
-		requests.post("https://za4fvvbnvd.execute-api.us-east-2.amazonaws.com/Hackathon/locations",json={"name":nm,"location":st})
+		if "id=" in st:
+			open("name.txt",'w').write(st.replace("id=",""))
+		elif "location=" in st:
+			requests.post("https://za4fvvbnvd.execute-api.us-east-2.amazonaws.com/Hackathon/locations",json={"name":open("name.txt").read(),"location":st.replace("location=","")})
 	inQRThread = False
 for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
 	image = frame.array
@@ -151,6 +159,3 @@ for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=
 			curEmote = cv2.resize(curEmote,(x2-x1,y2-y1))
 			blended = blend_transparent(img2[y1:y1+curEmote.shape[0],x1:x1+curEmote.shape[1]],curEmote)
 			img2[y1:y1+blended.shape[0],x1:x1+blended.shape[1]] = blended
-	cv2.imshow('frame',img2)
-	if cv2.waitKey(1) & 0xFF == ord('q'):
-		break
